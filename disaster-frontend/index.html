@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Disaster Response | Real-time Dashboard</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+    }
+    nav {
+      background-color: #2c3e50;
+      padding: 1em;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    nav h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+    nav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      gap: 15px;
+    }
+    nav ul li {
+      display: inline;
+    }
+    nav ul li a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    nav ul li a:hover {
+      text-decoration: underline;
+    }
+    main {
+      padding: 20px;
+    }
+    h2, h3 {
+      color: #333;
+    }
+    #result, #log, #officialUpdates, #imageResult {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-top: 20px;
+    }
+    input[type="text"] {
+      padding: 10px;
+      width: 300px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    pre {
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>Disaster Response Platform</h1>
+    <ul>
+      <li><a href="#">Dashboard</a></li>
+      <li><a href="#">Reports</a></li>
+      <li><a href="#">Verify</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h2>✨ Disaster Location Resolver</h2>
+    <input type="text" id="descriptionInput" placeholder="e.g. Flood in Hyderabad" />
+    <button onclick="geocode()">Geocode</button>
+    <div id="result"></div>
+
+    <hr />
+    <h3>🔔 Real-Time Event Log</h3>
+    <pre id="log"></pre>
+
+    <h3>🔍 Official Government Updates</h3>
+    <div id="officialUpdates">No updates fetched yet.</div>
+
+    <h3>📷 Verify Disaster Image</h3>
+    <input type="text" id="imageInput" placeholder="Enter image URL" />
+    <button onclick="verifyImage()">Verify</button>
+    <div id="imageResult">Image verification result will appear here.</div>
+  </main>
+
+  <script>
+    const resultDiv = document.getElementById('result');
+    const log = document.getElementById('log');
+    const officialUpdates = document.getElementById('officialUpdates');
+    const imageResult = document.getElementById('imageResult');
+
+    const socket = io("http://localhost:5000");
+    let lastDisasterId = null;
+
+    socket.on("connect", () => {
+      log.textContent += "\n🟢 Connected to WebSocket\n";
+    });
+
+    socket.on("location_resolved", (data) => {
+      log.textContent += `\n📍 Location resolved: ${JSON.stringify(data)}\n`;
+    });
+
+    socket.on("disaster_created", (data) => {
+      lastDisasterId = data.id;
+      log.textContent += `\n🚨 New disaster created: ${JSON.stringify(data)}\n`;
+    });
+
+    socket.on("resources_updated", (data) => {
+      log.textContent += `\n📦 Resources updated: ${JSON.stringify(data)}\n`;
+    });
+
+    socket.on("social_feed", (data) => {
+      log.textContent += `\n🗞️ ${data.timestamp}: ${data.message}\n`;
+    });
+
+    async function geocode() {
+      const desc = document.getElementById('descriptionInput').value;
+      if (!desc.trim()) return alert("Please enter a description.");
+      resultDiv.innerHTML = "⏳ Resolving location...";
+
+      try {
+        const response = await fetch("http://localhost:5000/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: desc })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          resultDiv.innerHTML = `
+            ✅ <strong>${data.location_name}</strong><br>
+            🌐 Latitude: ${data.lat}<br>
+            🌐 Longitude: ${data.lng}
+          `;
+          fetchOfficialUpdates();
+        } else {
+          resultDiv.innerHTML = `❌ Error: ${data.error}`;
+        }
+      } catch (err) {
+        resultDiv.innerHTML = `❌ Request failed: ${err.message}`;
+      }
+    }
+
+    async function fetchOfficialUpdates() {
+      const id = lastDisasterId || 1;
+      try {
+        const res = await fetch(`http://localhost:5000/disasters/${id}/official-updates`);
+        const data = await res.json();
+        if (data.updates?.length) {
+          officialUpdates.innerHTML = data.updates
+            .map(u => `🔗 <a href="${u.link}" target="_blank">${u.title}</a>`)
+            .join('<br>');
+        } else {
+          officialUpdates.textContent = "No recent disaster alerts found.";
+        }
+      } catch (err) {
+        officialUpdates.textContent = "❌ Failed to fetch updates.";
+      }
+    }
+
+    async function verifyImage() {
+      const url = document.getElementById("imageInput").value;
+      const id = lastDisasterId || 1;
+      if (!url.trim()) return alert("Please enter a valid image URL.");
+      imageResult.textContent = "⏳ Verifying image...";
+
+      try {
+        const res = await fetch(`http://localhost:5000/disasters/${id}/verify-image`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageUrl: url })
+        });
+        const data = await res.json();
+        imageResult.textContent = data.result || "❌ No result from Gemini.";
+      } catch (err) {
+        imageResult.textContent = `❌ Error: ${err.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
