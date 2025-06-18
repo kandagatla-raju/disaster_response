@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Disaster Response | Real-time Dashboard</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
@@ -109,12 +109,13 @@
   </main>
 
   <script>
+    const API_BASE = "http://localhost:5000"; // Change to your deployed backend URL
     const resultDiv = document.getElementById('result');
     const log = document.getElementById('log');
     const officialUpdates = document.getElementById('officialUpdates');
     const imageResult = document.getElementById('imageResult');
+    const socket = io(API_BASE);
 
-    const socket = io("http://localhost:5000");
     let lastDisasterId = null;
 
     socket.on("connect", () => {
@@ -144,18 +145,15 @@
       resultDiv.innerHTML = "⏳ Resolving location...";
 
       try {
-        const response = await fetch("http://localhost:5000/geocode", {
+        const response = await fetch(`${API_BASE}/geocode`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ description: desc })
         });
         const data = await response.json();
+
         if (response.ok) {
-          resultDiv.innerHTML = `
-            ✅ <strong>${data.location_name}</strong><br>
-            🌐 Latitude: ${data.lat}<br>
-            🌐 Longitude: ${data.lng}
-          `;
+          resultDiv.innerHTML = `✅ <strong>${data.location_name}</strong><br>🌐 Latitude: ${data.lat}<br>🌐 Longitude: ${data.lng}`;
           fetchOfficialUpdates();
         } else {
           resultDiv.innerHTML = `❌ Error: ${data.error}`;
@@ -168,8 +166,9 @@
     async function fetchOfficialUpdates() {
       const id = lastDisasterId || 1;
       try {
-        const res = await fetch(`http://localhost:5000/disasters/${id}/official-updates`);
+        const res = await fetch(`${API_BASE}/disasters/${id}/official-updates`);
         const data = await res.json();
+
         if (data.updates?.length) {
           officialUpdates.innerHTML = data.updates
             .map(u => `🔗 <a href="${u.link}" target="_blank">${u.title}</a>`)
@@ -186,10 +185,10 @@
       const url = document.getElementById("imageInput").value;
       const id = lastDisasterId || 1;
       if (!url.trim()) return alert("Please enter a valid image URL.");
-      imageResult.textContent = "⏳ Verifying image...";
 
+      imageResult.textContent = "⏳ Verifying image...";
       try {
-        const res = await fetch(`http://localhost:5000/disasters/${id}/verify-image`, {
+        const res = await fetch(`${API_BASE}/disasters/${id}/verify-image`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageUrl: url })
