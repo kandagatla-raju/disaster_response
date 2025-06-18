@@ -6,7 +6,12 @@ const router = express.Router();
 router.get('/:id/official-updates', async (req, res) => {
   try {
     const baseUrl = 'https://ndma.gov.in';
-    const { data: html } = await axios.get(baseUrl);
+    const { data: html } = await axios.get(baseUrl, {
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/113 Safari/537.36'
+  }
+});
+
     const $ = cheerio.load(html);
     const updates = [];
 
